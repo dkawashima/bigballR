@@ -1236,7 +1236,8 @@ get_date_games <-
 
     table <- XML::readHTMLTable(html)
     if(length(table) == 0) {
-      stop("No Games Table Found")
+      # stop("No Games Table Found")
+      return(data.frame(matrix(ncol = 5, nrow = 0)))
     } else {
       table <- table[[1]]
     }
@@ -1683,10 +1684,35 @@ get_team_roster <-
       close(file_url)
     }
 
+    doc = XML::htmlTreeParse(roster_url,
+       useInternalNodes = TRUE)
+
+    hrefFun <- function(x){
+      XML::xpathSApply(x, './/a', XML::xmlGetAttr, "href")
+    }
+
+    node_set <- XML::getNodeSet(doc, "//table[@id = 'stat_grid']")
+
+    # Write a function that will extract the information out of a given table node.
+    readHTMLTableLinks =
+    function(tb)
+    {
+      # get the header information.
+      vals = sapply(tb[["tbody"]]["tr"],  function(x) sapply(x["td"], hrefFun ))[2, ]
+      vals = stringr::str_split_fixed(vals, '&', 3)
+      vals = stringr::str_split_fixed(vals[, 3], '=', 2)[, 2]
+      vals
+    }  
+
+     # Now process each of the table nodes in the o list.
+    player_id_list = as.data.frame(lapply(node_set, readHTMLTableLinks), col.names = c("Player_ID"))
+
     table <- XML::readHTMLTable(html)[[1]][, 1:5] %>%
       mutate(across(everything(), as.character))
-    # Return the more usable roster page
+
+    table$Player_ID <- player_id_list$Player_ID
     player <- table$Player
+
     clean_name <- sapply(strsplit(player, ","), function(x){trimws(paste(x[length(x)],x[1]))})
     format <- gsub("[^[:alnum:] ]", "", clean_name)
     format <- toupper(gsub("\\s+",".", format))
@@ -3560,3 +3586,4 @@ get_possessions <- function(play_by_play_data = NA, simple = F) {
     return(possession_df)
   }
 }
+
